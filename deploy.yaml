@@ -1,0 +1,80 @@
+# --- 1. Secret: chứa cấu hình môi trường ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: timecommerce-ai-secret
+type: Opaque
+stringData:
+  GOOGLE_API_KEY: "AIzaSyBITntpOVk-CckA2vXDPCLp0WavU355_9g"
+  POSTGRES_HOST: "103.175.147.108"
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "postgres_123"
+  SECRET_KEY: "Yh2k7QSu4l8CZg5p6X3Pna9L0Miy4D3Bvt0JVr87UcOj69Kqw5R2Nmf4FWs03Hdx"
+  ALGORITHM: "HS256"
+  ISSUER: "https://account.biz5s.com"
+  AUDIENCE: "Tai Nguyen"
+  MONGO_URL: "mongodb://admin:G5HY75FFI9@103.175.147.108:27017"
+  MONGO_DB: "Biz5sDb"
+
+---
+# --- 2. Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timecommerce-ai
+  labels:
+    app: timecommerce-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timecommerce-ai
+  template:
+    metadata:
+      labels:
+        app: timecommerce-ai
+    spec:
+      containers:
+        - name: timecommerce-ai
+          image: tainguyen1501/timeai
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: timecommerce-ai-secret
+
+---
+# --- 3. Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timecommerce-ai-service
+spec:
+  selector:
+    app: timecommerce-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+
+---
+# --- 4. Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: timecommerce-ai-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ai.biz5s.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: timecommerce-ai-service
+                port:
+                  number: 8000
