@@ -47,8 +47,8 @@ docker run -p 8000:8000 \
 
 # day la build manualy. su dung cac buoc sau cho x86_64
 
-docker tag tiktokapi:latest tainguyen1501/timeai:latest
-docker push tainguyen1501/timeai:latest
+docker tag tiktokapi:latest tainguyen1501/py-social:latest
+docker push tainguyen1501/py-social:latest
 
 # Buid x86_64 cho cluster . NOTE check bellow is doc. just run docker pull mcr.microsoft.com/playwright:focal
 
@@ -63,8 +63,8 @@ docker buildx inspect --bootstrap
 
 # Bước 2 — Build image cho x86_64
 
-docker buildx build --platform linux/amd64 -t tainguyen1501/timeai:latest --push .
+docker buildx build --platform linux/amd64 -t tainguyen1501/py-social:latest --push .
 
 # Bước 3 — Kiểm tra image
 
-docker buildx imagetools inspect tainguyen1501/timeai:latest
+docker buildx imagetools inspect tainguyen1501/py-social:latest

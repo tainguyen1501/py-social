@@ -28,7 +28,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_ACCOUNT }}/timeai # Change this to your docker image name
+          images: ${{ secrets.DOCKER_ACCOUNT }}/py-social # Change this to your docker image name
 
       - name: Build and push to docker hub
         uses: docker/build-push-action@v6
