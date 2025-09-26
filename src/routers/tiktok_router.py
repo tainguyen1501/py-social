@@ -9,162 +9,88 @@ import io
 load_dotenv(".env.local")
 
 router = APIRouter(prefix="/api/v1/tiktok", tags=["DbConnections"])
-
 def process_video_data(raw: dict, region: str = "VN") -> dict:
     """
-    Xử lý raw video data thành format đồng bộ
+    Xử lý raw video data thành format đồng bộ và cast kiểu dữ liệu
     """
     author_info = raw.get("author", {})
     stats_info = raw.get("stats", {})
     music_info = raw.get("music", {})
     video_info = raw.get("video", {})
-    
+
+    def safe_str(val):
+        return str(val) if val is not None else ""
+
+    def safe_int(val):
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return 0
+
     clean = {
         # Video Basic Info
-        "id": raw.get("id"),
-        "description": raw.get("desc"),
-        "created_time": raw.get("createTime"),
-        "duration": video_info.get("duration"),
-        
-        # Author Information - Đầy đủ
+        "id": safe_str(raw.get("id")),
+        "description": safe_str(raw.get("desc")),
+        "created_time": safe_str(raw.get("createTime")),
+        "duration": safe_int(video_info.get("duration")),
+
+        # Author Information
         "author": {
-            # Basic Info
-            "id": author_info.get("id"),
-            "unique_id": author_info.get("uniqueId"),
-            "nickname": author_info.get("nickname"),
-            "signature": author_info.get("signature", ""),
-            "verified": author_info.get("verified", False),
-            "secret": author_info.get("secret", False),
-            "ftc": author_info.get("ftc", False),
-            
-            # Avatar URLs - Đầy đủ kích thước
-            # "avatars": {
-            #     "thumb": author_info.get("avatarThumb"),
-            #     "medium": author_info.get("avatarMedium"),
-            #     "large": author_info.get("avatarLarger"),
-            # },
-            "avatar": author_info.get("avatarMedium"),
-            
-            # Stats
+            "id": safe_str(author_info.get("id")),
+            "unique_id": safe_str(author_info.get("uniqueId")),
+            "nickname": safe_str(author_info.get("nickname")),
+            "signature": safe_str(author_info.get("signature")),
+            "verified": bool(author_info.get("verified", False)),
+            "secret": bool(author_info.get("secret", False)),
+            "ftc": bool(author_info.get("ftc", False)),
+            "avatar": safe_str(author_info.get("avatarMedium")),
             "stats": {
-                "follower_count": author_info.get("followerCount", 0),
-                "following_count": author_info.get("followingCount", 0),
-                "heart_count": author_info.get("heartCount", 0),
-                "video_count": author_info.get("videoCount", 0),
-                "digg_count": author_info.get("diggCount", 0),
+                "follower_count": safe_int(author_info.get("followerCount")),
+                "following_count": safe_int(author_info.get("followingCount")),
+                "heart_count": safe_int(author_info.get("heartCount")),
+                "video_count": safe_int(author_info.get("videoCount")),
+                "digg_count": safe_int(author_info.get("diggCount")),
             },
-            
-            # Links
             "links": {
-                "profile_url": f"https://www.tiktok.com/@{author_info.get('uniqueId')}",
-                "tiktok_profile": f"tiktok.com/@{author_info.get('uniqueId')}",
-                # "open_favorite": author_info.get("openFavorite", False),
+                "profile_url": safe_str(f"https://www.tiktok.com/@{author_info.get('uniqueId')}"),
+                "tiktok_profile": safe_str(f"tiktok.com/@{author_info.get('uniqueId')}"),
             },
-            
-            # Additional
-            # "create_time": author_info.get("createTime"),
-            # "tt_seller": author_info.get("ttSeller", False),
-            # "is_ad_virtual": author_info.get("isADVirtual", False),
         },
-        
+
         # Music Information
         "music": {
-            "id": music_info.get("id"),
-            "title": music_info.get("title"),
-            "author": music_info.get("authorName"),
-            "album": music_info.get("album"),
-            "duration": music_info.get("duration"),
-            "original": music_info.get("original", False),
-            "play_url": music_info.get("playUrl"),
-            # "cover_large": music_info.get("coverLarge"),
-            # "cover_medium": music_info.get("coverMedium"),
-            # "cover_thumb": music_info.get("coverThumb"),
+            "id": safe_str(music_info.get("id")),
+            "title": safe_str(music_info.get("title")),
+            "author": safe_str(music_info.get("authorName")),
+            "album": safe_str(music_info.get("album")),
+            "duration": safe_int(music_info.get("duration")),
+            "original": bool(music_info.get("original", False)),
+            "play_url": safe_str(music_info.get("playUrl")),
         },
-        
+
         # Video Statistics
         "stats": {
-            "views": stats_info.get("playCount", 0),
-            "likes": stats_info.get("diggCount", 0),
-            "comments": stats_info.get("commentCount", 0),
-            "shares": stats_info.get("shareCount", 0),
-            "saves": stats_info.get("collectCount", 0),
-            "reposts": stats_info.get("repostCount", 0),
+            "views": safe_int(stats_info.get("playCount")),
+            "likes": safe_int(stats_info.get("diggCount")),
+            "comments": safe_int(stats_info.get("commentCount")),
+            "shares": safe_int(stats_info.get("shareCount")),
+            "saves": safe_str(stats_info.get("collectCount")),
+            "reposts": safe_int(stats_info.get("repostCount")),
         },
-        
+
         # Video Details
         "video_details": {
-            "duration": video_info.get("duration"),
-            "width": video_info.get("width"),
-            "height": video_info.get("height"),
-            "ratio": video_info.get("ratio"),
-            "format": video_info.get("format"),
-            "video_quality": video_info.get("videoQuality"),
-            
-            # Cover Images
-            # "covers": {
-            #     "cover": video_info.get("cover"),
-            #     "origin_cover": video_info.get("originCover"),
-            #     "dynamic_cover": video_info.get("dynamicCover"),
-            #     "share_cover": video_info.get("shareCover", []),
-            # },
-            "origin_cover": video_info.get("originCover"),
-
-
-            # Video URLs
-            # "urls": {
-            #     "play_addr": video_info.get("playAddr"),
-            #     "download_addr": video_info.get("downloadAddr"),
-            #     "reflow_cover": video_info.get("reflowCover"),
-            # },
-            
-            # Technical Info
-            # "bitrate": video_info.get("bitrate"),
-            # "encoded_type": video_info.get("encodedType"),
-            # "codec_type": video_info.get("codecType"),
+            "duration": safe_int(video_info.get("duration")),
+            "width": safe_int(video_info.get("width")),
+            "height": safe_int(video_info.get("height")),
+            "ratio": safe_str(video_info.get("ratio")),
+            "format": safe_str(video_info.get("format")),
+            "video_quality": safe_str(video_info.get("videoQuality")),
+            "origin_cover": safe_str(video_info.get("originCover")),
         },
-        
+
         # Important URLs
-        # "urls": {
-        #     "tiktok_url": f"https://www.tiktok.com/@{author_info.get('uniqueId')}/video/{raw.get('id')}",
-        #     "share_url": f"https://vt.tiktok.com/{raw.get('id')}",
-        #     "download_url": f"http://127.0.0.1:8000/api/v1/tiktok/download/{raw.get('id')}",
-        #     "video_direct_url": video_info.get("playAddr"),
-        #     "author_profile_url": f"https://www.tiktok.com/@{author_info.get('uniqueId')}",
-        # },
-        "tiktok_video_url": f"https://www.tiktok.com/@{author_info.get('uniqueId')}/video/{raw.get('id')}",
-        # Additional Metadata
-        # "metadata": {
-        #     "region": region,
-        #     "language": language,
-        #     "is_original": raw.get("originalItem", False),
-        #     "is_ad": raw.get("isAd", False),
-        #     "private_item": raw.get("privateItem", False),
-        #     "duet_enabled": raw.get("duetEnabled", True),
-        #     "stitch_enabled": raw.get("stitchEnabled", True),
-        #     "share_enabled": raw.get("shareEnabled", True),
-        # },
-        
-        # Challenges/Hashtags
-        # "challenges": [
-        #     {
-        #         "id": challenge.get("id"),
-        #         "title": challenge.get("title"),
-        #         "desc": challenge.get("desc"),
-        #         "cover": challenge.get("cover"),
-        #         "is_commerce": challenge.get("isCommerce", False),
-        #     } for challenge in raw.get("challenges", [])
-        # ],
-        
-        # Text Extra (Mentions, Hashtags)
-        # "text_extra": [
-        #     {
-        #         "type": extra.get("type"),
-        #         "text": extra.get("text"),
-        #         "user_id": extra.get("userId"),
-        #         "hashtag_id": extra.get("hashtagId"),
-        #         "hashtag_name": extra.get("hashtagName"),
-        #     } for extra in raw.get("textExtra", [])
-        # ],
+        "tiktok_video_url": safe_str(f"https://www.tiktok.com/@{author_info.get('uniqueId')}/video/{raw.get('id')}"),
     }
 
     return clean
