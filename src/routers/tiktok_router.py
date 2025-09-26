@@ -123,7 +123,7 @@ async def video_info(url: str = Query(..., description="TikTok video URL")):
     video_data = await video.info()
     return process_video_data(video_data)
 
-@router.get("/download-direct")
+@router.get("/download-video")
 async def download_video_direct(url: str = Query(..., description="TikTok video URL")):
     try:
         api = await create_tiktok_session()
