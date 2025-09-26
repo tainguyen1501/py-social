@@ -1,11 +1,9 @@
 from fastapi import FastAPI
 from fastapi.security import HTTPBearer
 from src.routers import tiktok_router
-from src.routers import llm_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from fastapi.security import HTTPBearer
-from src.routers import test_router
 SECRET_KEY = "Yh2k7QSu4l8CZg5p6X3Pna9L0Miy4D3Bvt0JVr87UcOj69Kqw5R2Nmf4FWs03Hdx"
 ALGORITHM = "HS256"
 ISSUER = "https://account.biz5s.com"
@@ -51,8 +49,6 @@ app.add_middleware(
 )
 
 
-app.include_router(llm_router.router)
-app.include_router(test_router.router)
 app.include_router(tiktok_router.router)
 
 
