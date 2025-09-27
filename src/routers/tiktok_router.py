@@ -2,8 +2,9 @@ import os
 import io
 import random
 from typing import Optional, cast
+from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from TikTokApi import TikTokApi
 
 router = APIRouter(prefix="/api/v1/tiktok", tags=["TikTok"])
@@ -192,3 +193,38 @@ async def trendings(
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
     finally:
         await api.close_sessions() 
+
+
+
+SAVE_FOLDER = "downloads"  # folder lưu file
+os.makedirs(SAVE_FOLDER, exist_ok=True)
+
+@router.get("/download-video-as-link")
+async def download_video_as_link(url: str = Query(..., description="TikTok video URL")):
+    """
+    Download TikTok video, save to server, return download link.
+    """
+    try:
+        api = await create_tiktok_session()
+        video = api.video(url=url)
+        video_info = await video.info()
+        video_bytes = await video.bytes()
+
+        # tạo file name duy nhất
+        file_name = f"tiktok_{video_info['id']}_{uuid4().hex}.mp4"
+        file_path = os.path.join(SAVE_FOLDER, file_name)
+
+        # ghi file vào server
+        with open(file_path, "wb") as f:
+            f.write(video_bytes) # type: ignore
+
+        # trả về link (giả sử client truy cập từ /downloads)
+        download_link = f"/downloads/{file_name}"
+
+        return JSONResponse({"path": download_link})
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(error_details)
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
