@@ -1,11 +1,15 @@
 import os
 import io
+import random
 from typing import Optional, cast
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from TikTokApi import TikTokApi
+
 router = APIRouter(prefix="/api/v1/tiktok", tags=["TikTok"])
 
+
+# --- TikTok session manager ---
 async def create_tiktok_session(
     user_ms_token: str = "",
     num_sessions: int = 1,
@@ -13,20 +17,22 @@ async def create_tiktok_session(
     browser: Optional[str] = None,
 ) -> TikTokApi:
     """
-    Tạo và trả về TikTokApi session
+    Tạo và trả về TikTokApi session (có thể nhiều session)
     """
     if browser is None:
         browser = os.getenv("TIKTOK_BROWSER", "chromium")
 
     api = TikTokApi()
     await api.create_sessions(
-        ms_tokens=[user_ms_token],
+        ms_tokens=[user_ms_token] if user_ms_token else [],
         num_sessions=num_sessions,
         sleep_after=sleep_after,
         browser=browser,
     )
     return api
 
+
+# --- Data processing ---
 def process_video_data(raw: dict, region: str = "VN") -> dict:
     """
     Chuẩn hóa raw TikTok video data thành format đồng bộ
@@ -45,12 +51,11 @@ def process_video_data(raw: dict, region: str = "VN") -> dict:
         except (ValueError, TypeError):
             return 0
 
-    clean = {
+    return {
         "id": safe_str(raw.get("id")),
         "description": safe_str(raw.get("desc")),
         "created_time": safe_str(raw.get("createTime")),
         "duration": safe_int(video_info.get("duration")),
-
         "author": {
             "id": safe_str(author_info.get("id")),
             "unique_id": safe_str(author_info.get("uniqueId")),
@@ -68,11 +73,10 @@ def process_video_data(raw: dict, region: str = "VN") -> dict:
                 "digg_count": safe_int(author_info.get("diggCount")),
             },
             "links": {
-                "profile_url": safe_str(f"https://www.tiktok.com/@{author_info.get('uniqueId')}"),
-                "tiktok_profile": safe_str(f"tiktok.com/@{author_info.get('uniqueId')}"),
+                "profile_url": f"https://www.tiktok.com/@{author_info.get('uniqueId')}",
+                "tiktok_profile": f"tiktok.com/@{author_info.get('uniqueId')}",
             },
         },
-
         "music": {
             "id": safe_str(music_info.get("id")),
             "title": safe_str(music_info.get("title")),
@@ -82,7 +86,6 @@ def process_video_data(raw: dict, region: str = "VN") -> dict:
             "original": bool(music_info.get("original", False)),
             "play_url": safe_str(music_info.get("playUrl")),
         },
-
         "stats": {
             "views": safe_int(stats_info.get("playCount")),
             "likes": safe_int(stats_info.get("diggCount")),
@@ -91,7 +94,6 @@ def process_video_data(raw: dict, region: str = "VN") -> dict:
             "saves": safe_str(stats_info.get("collectCount")),
             "reposts": safe_int(stats_info.get("repostCount")),
         },
-
         "video_details": {
             "duration": safe_int(video_info.get("duration")),
             "width": safe_int(video_info.get("width")),
@@ -101,26 +103,26 @@ def process_video_data(raw: dict, region: str = "VN") -> dict:
             "video_quality": safe_str(video_info.get("videoQuality")),
             "origin_cover": safe_str(video_info.get("originCover")),
         },
-
-        "tiktok_video_url": safe_str(
-            f"https://www.tiktok.com/@{author_info.get('uniqueId')}/video/{raw.get('id')}"
-        ),
+        "tiktok_video_url": f"https://www.tiktok.com/@{author_info.get('uniqueId')}/video/{raw.get('id')}",
     }
 
-    return clean
 
-
+# --- Helper to get session ---
 def get_api(request: Request):
-    api = getattr(request.app.state, "tiktok_api", None)
+    api: TikTokApi = getattr(request.app.state, "tiktok_api", None)  # type: ignore
     if not api:
         raise HTTPException(status_code=500, detail="TikTok session not initialized")
-    return api
+
+    # --- chọn random session ---
+    session = random.choice(api.sessions)
+    return api, session
 
 
+# --- Routes ---
 @router.get("/video-info")
 async def video_info(request: Request, url: str = Query(..., description="TikTok video URL")):
-    api = get_api(request)
-    video = api.video(url=url)
+    api, session = get_api(request)
+    video = api.video(url=url, session=session)
     video_data = await video.info()
     return process_video_data(video_data)
 
@@ -128,8 +130,8 @@ async def video_info(request: Request, url: str = Query(..., description="TikTok
 @router.get("/download-video")
 async def download_video_direct(request: Request, url: str = Query(..., description="TikTok video URL")):
     try:
-        api = get_api(request)
-        video = api.video(url=url)
+        api, session = get_api(request)
+        video = api.video(url=url, session=session)
         video_info = await video.info()
         video_bytes = cast(bytes, await video.bytes())
         return StreamingResponse(
@@ -154,9 +156,13 @@ async def trendings(
     Lấy danh sách video trending
     """
     try:
-        api = get_api(request)
+        api, session = get_api(request)
         results = []
-        async for video in api.trending.videos(count=count, custom_region=region.upper()):
+        async for video in api.trending.videos(
+            count=count,
+            custom_region=region.upper(),
+            session=session,
+        ):
             raw = video.as_dict
             clean = process_video_data(raw, region=region)
             results.append(clean)
