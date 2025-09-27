@@ -121,29 +121,42 @@ def get_api(request: Request):
 # --- Routes ---
 @router.get("/video-info")
 async def video_info(request: Request, url: str = Query(..., description="TikTok video URL")):
-    api, session = get_api(request)
-    video = api.video(url=url, session=session)
-    video_data = await video.info()
-    return process_video_data(video_data)
-
+    api = await create_tiktok_session()
+    try:
+        video = api.video(url=url)
+        video_data = await video.info()
+        return process_video_data(video_data)
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(error_details)
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    finally:
+        await api.close_sessions() 
 
 @router.get("/download-video")
-async def download_video_direct(request: Request, url: str = Query(..., description="TikTok video URL")):
+async def download_video(url: str = Query(..., description="TikTok video URL")):
+    api = await create_tiktok_session()
     try:
-        api, session = get_api(request)
-        video = api.video(url=url, session=session)
+        video = api.video(url=url)
         video_info = await video.info()
-        video_bytes = cast(bytes, await video.bytes())
+        video_bytes = await video.bytes()
         return StreamingResponse(
-            io.BytesIO(video_bytes),
+            io.BytesIO(video_bytes), # type: ignore
             media_type="video/mp4",
             headers={
-                "Content-Disposition": f"attachment; filename=tiktok_{video_info['id']}.mp4"
-            },
+                # "Content-Disposition": f"attachment; filename=tiktok_{video_info['id']}.mp4"
+                "Content-Disposition": f"attachment; filename=tiktok_video.mp4"
+
+            }
         )
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(error_details)
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
+    finally:
+        await api.close_sessions()
 
 @router.get("/trendings")
 async def trendings(
@@ -155,13 +168,12 @@ async def trendings(
     """
     Lấy danh sách video trending
     """
+    api = await create_tiktok_session()
     try:
-        api, session = get_api(request)
         results = []
         async for video in api.trending.videos(
             count=count,
             custom_region=region.upper(),
-            session=session,
         ):
             raw = video.as_dict
             clean = process_video_data(raw, region=region)
@@ -174,4 +186,9 @@ async def trendings(
             "videos": results,
         }
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(error_details)
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    finally:
+        await api.close_sessions() 

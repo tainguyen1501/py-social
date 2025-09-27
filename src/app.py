@@ -61,47 +61,5 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# Startup / Shutdown events
-@app.on_event("startup")
-async def startup_event():
-    """
-    Initialize TikTokApi sessions when app starts
-    """
-    # You can configure num_sessions for multi-user support
-    api = await create_tiktok_session(
-        num_sessions=int(os.getenv("TIKTOK_NUM_SESSIONS", "3")),
-        sleep_after=3,
-    )
-    app.state.tiktok_api = api
-    print("✅ TikTok session(s) initialized")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    Cleanly close TikTokApi sessions when app stops
-    """
-    api: TikTokApi = getattr(app.state, "tiktok_api", None)  # type: ignore
-    if api:
-        await api.close_sessions()
-        print("🛑 TikTok session(s) closed")
-
-
 # Routers
 app.include_router(tiktok_router.router)
-
-
-# Example protected route
-@app.get("/protected")
-async def protected(claims: dict = Depends(verify_jwt_token)):
-    if is_token_expired(claims):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
-        )
-    return {
-        "message": "✅ You are authorized!",
-        "claims": claims,
-    }
