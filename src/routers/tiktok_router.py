@@ -2,9 +2,8 @@ import os
 import io
 import random
 from typing import Optional, cast
-from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from TikTokApi import TikTokApi
 
 router = APIRouter(prefix="/api/v1/tiktok", tags=["TikTok"])
@@ -122,42 +121,29 @@ def get_api(request: Request):
 # --- Routes ---
 @router.get("/video-info")
 async def video_info(request: Request, url: str = Query(..., description="TikTok video URL")):
-    api = await create_tiktok_session()
-    try:
-        video = api.video(url=url)
-        video_data = await video.info()
-        return process_video_data(video_data)
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(error_details)
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-    finally:
-        await api.close_sessions() 
+    api, session = get_api(request)
+    video = api.video(url=url, session=session)
+    video_data = await video.info()
+    return process_video_data(video_data)
+
 
 @router.get("/download-video")
-async def download_video(url: str = Query(..., description="TikTok video URL")):
-    api = await create_tiktok_session()
+async def download_video_direct(request: Request, url: str = Query(..., description="TikTok video URL")):
     try:
-        video = api.video(url=url)
+        api, session = get_api(request)
+        video = api.video(url=url, session=session)
         video_info = await video.info()
-        video_bytes = await video.bytes()
+        video_bytes = cast(bytes, await video.bytes())
         return StreamingResponse(
-            io.BytesIO(video_bytes), # type: ignore
+            io.BytesIO(video_bytes),
             media_type="video/mp4",
             headers={
-                # "Content-Disposition": f"attachment; filename=tiktok_{video_info['id']}.mp4"
-                "Content-Disposition": f"attachment; filename=tiktok_video.mp4"
-
-            }
+                "Content-Disposition": f"attachment; filename=tiktok_{video_info['id']}.mp4"
+            },
         )
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(error_details)
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-    finally:
-        await api.close_sessions()
+
 
 @router.get("/trendings")
 async def trendings(
@@ -169,12 +155,13 @@ async def trendings(
     """
     Lấy danh sách video trending
     """
-    api = await create_tiktok_session()
     try:
+        api, session = get_api(request)
         results = []
         async for video in api.trending.videos(
             count=count,
             custom_region=region.upper(),
+            session=session,
         ):
             raw = video.as_dict
             clean = process_video_data(raw, region=region)
@@ -187,12 +174,14 @@ async def trendings(
             "videos": results,
         }
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(error_details)
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-    finally:
-        await api.close_sessions() 
+
+
+import os
+import io
+from fastapi import APIRouter, Query, HTTPException
+from fastapi.responses import JSONResponse
+from uuid import uuid4
 
 
 
@@ -200,13 +189,15 @@ SAVE_FOLDER = "downloads"  # folder lưu file
 os.makedirs(SAVE_FOLDER, exist_ok=True)
 
 @router.get("/download-video-as-link")
-async def download_video_as_link(url: str = Query(..., description="TikTok video URL")):
+async def download_video_as_link(    request: Request,url: str = Query(..., description="TikTok video URL")):
     """
     Download TikTok video, save to server, return download link.
     """
     try:
-        api = await create_tiktok_session()
-        video = api.video(url=url)
+        # api = await create_tiktok_session()
+        api, session = get_api(request)
+        # video = api.video(url=url)
+        video = api.video(url=url, session=session)
         video_info = await video.info()
         video_bytes = await video.bytes()
 
